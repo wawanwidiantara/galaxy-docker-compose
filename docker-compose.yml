@@ -1,0 +1,69 @@
+services:
+  galaxy:
+    image: quay.io/bgruening/galaxy:latest
+    container_name: galaxy_production
+    privileged: true
+    restart: always
+    ports:
+      # HTTP (Main Web Interface)
+      - "${GALAXY_PORT:-8080}:80"
+      # FTP (Control & Data)
+      - "8021:21"
+      # SFTP (Secure Data Transfer)
+      - "8022:22"
+      # Interactive Tools Proxy
+      - "4002:4002"
+      # Supervisor Web UI (Optional, secured via htpasswd)
+      - "9002:9002"
+    environment:
+      # --- GALAXY CORE CONFIG ---
+      - GALAXY_CONFIG_BRAND=${GALAXY_BRAND:-Galaxy Enterprise}
+      - GALAXY_DOMAIN=${GALAXY_DOMAIN:-localhost}
+      - GALAXY_LOGGING=${GALAXY_LOGGING:-full}
+      - GALAXY_AUTO_UPDATE_DB=${GALAXY_AUTO_UPDATE_DB:-True}
+      - GALAXY_EXPORT_MARKER=${GALAXY_EXPORT_MARKER:-}
+      
+      # --- SECURITY ---
+      - GALAXY_CONFIG_ADMIN_USERS=${GALAXY_ADMIN_USERS}
+      - GALAXY_BOOTSTRAP_ADMIN_API_KEY=${GALAXY_BOOTSTRAP_ADMIN_API_KEY}
+      - GALAXY_CONFIG_ID_SECRET=${GALAXY_ID_SECRET}
+      
+      # --- NETWORKING & PROXY (HTTPS Disabled per Request) ---
+      - USE_HTTPS=False
+      - USE_HTTPS_LETSENCRYPT=False
+      - PROXY_PREFIX=${PROXY_PREFIX:-}
+      
+      # --- DOCKER & CLUSTER INTEGRATION ---
+      - GALAXY_DOCKER_ENABLED=${GALAXY_DOCKER_ENABLED:-True}
+      - GALAXY_DOCKER_VOLUMES=${GALAXY_DOCKER_VOLUMES:-""}
+      - DOCKER_PARENT=${DOCKER_PARENT:-True}
+      - GALAXY_DESTINATIONS_DEFAULT=${GALAXY_DESTINATIONS_DEFAULT:-slurm_cluster}
+      
+      # --- RESOURCE MANAGEMENT & SCALING ---
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-4}
+      - CELERY_WORKERS=${CELERY_WORKERS:-2}
+      - GALAXY_HANDLER_NUMPROCS=${GALAXY_HANDLER_NUMPROCS:-2}
+      
+      # --- SERVICE CONTROL (Toggling) ---
+      - NONUSE=${NONUSE:-}
+      
+      # --- EXPERIMENTAL / DEV FEATURES ---
+      - BARE=${BARE:-False}
+      - ENABLE_TTS_INSTALL=${ENABLE_TTS_INSTALL:-False}
+      - LOAD_GALAXY_CONDITIONAL_DEPENDENCIES=${LOAD_GALAXY_CONDITIONAL_DEPENDENCIES:-False}
+      - LOAD_PYTHON_DEV_DEPENDENCIES=${LOAD_PYTHON_DEV_DEPENDENCIES:-False}
+
+    volumes:
+      # Main data export directory (Database, Tools, Datasets, CVMFS cache)
+      - ./export:/export
+      # Persistent logs for auditing
+      - ./logs:/home/galaxy/logs
+      # Custom configuration overrides
+      - ./config/welcome.html:/export/welcome.html:ro
+      - ./config/common_htpasswd:/export/common_htpasswd:ro
+      # Docker socket for Parent Docker mode (Enabled for IT/BioContainers)
+      - /var/run/docker.sock:/var/run/docker.sock
+
+networks:
+  default:
+    name: galaxy_network

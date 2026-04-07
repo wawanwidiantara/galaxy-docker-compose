@@ -1,0 +1,30 @@
+# ------------------------------------------------------------------------------
+# GALAXY PRODUCTION GITIGNORE
+# ------------------------------------------------------------------------------
+
+# 1. Environment & Secrets (NEVER PUSH THESE)
+.env
+.env.local
+.env.*.local
+
+# 2. Large Data Folders (Store locally, not in Git)
+export/
+logs/
+
+# 3. Docker Transient Files
+.docker/
+docker-compose.override.yml
+
+# 4. OS/IDE Specific
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# 5. Local Python/Venv (if any)
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/

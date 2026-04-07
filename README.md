@@ -1,28 +1,35 @@
-# Galaxy Deployment Configuration
+# galaxy-docker-compose
 
-This repository provides a streamlined configuration and orchestration for running a production-ready Galaxy instance using Docker Compose. It is designed for easy deployment on Linux VMs within restricted network environments.
+[![Docker](https://img.shields.io/badge/Docker-%230db7ed.svg?style=flat-square&logo=docker&logoColor=white)](https://www.docker.com/)
+[![Galaxy](https://img.shields.io/badge/Galaxy-%2371b1eb.svg?style=flat-square&logo=galaxy&logoColor=white)](https://galaxyproject.org/)
+[![License](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](https://opensource.org/licenses/MIT)
 
-## 🏁 Quick Start
-To get your Galaxy setup running in few minutes, follow our **[Step Guide](docs/PRODUCTION_SETUP.md)**.
+A clean, production-ready Docker Compose configuration for the [Galaxy Project](https://galaxyproject.org/). This repository is a wrapper around the scientific images provided by the [Galaxy Docker](https://github.com/bgruening/docker-galaxy) community, optimized for private cloud and office VM deployments.
 
-## 🛠 Included Features
-- **Reference Data**: CVMFS integration for on-demand access to curated genomes.
-- **Advanced Tools**: Pre-configured support for Interactive Tools (Jupyter/RStudio) and BioContainers.
-- **Persistence**: Structured volumes for databases and logs for reliable backups.
-- **Uninstallation**: Simple cleanup steps to wipe the environment and data.
+## 🏁 Directions
+To set up your instance, follow the step-by-step guide:
+👉 **[Step Guide (Setup)](docs/PRODUCTION_SETUP.md)**
 
-## 📚 Documentation
-- **[Step Guide](docs/PRODUCTION_SETUP.md)**: Standard deployment in 5 steps.
-- **[Configuration (CONFIG.md)](docs/CONFIG.md)**: Detailed environment variable reference.
-- **[Advanced Documentation](docs/DOCUMENTATION.md)**: Original technical specifications and Galaxy features.
+## ⚙️ Configuration
+A complete reference for all environment variables (`.env`):
+👉 **[Config Reference (CONFIG.md)](docs/CONFIG.md)**
+
+## 🛠 Features Included
+- **Reference Data**: CVMFS integration for on-demand genome access.
+- **Interactive Tools**: Built-in proxy for Jupyter and RStudio notebooks.
+- **Platform Integration**: Native Docker-in-Docker support for BioContainers.
+- **Scaling**: Configurable Gunicorn workers and Job Handlers for multi-user workloads.
+
+## 🧹 Maintenance
+- **Updates**: `docker compose pull && docker compose up -d`
+- **Clean Uninstall**: See the **Uninstall** section in the [Step Guide](docs/PRODUCTION_SETUP.md).
 
 ---
 
-## 🤝 Credits & Tribute
+## 🤝 Credits
+This configuration relies entirely on the work of the **Galaxy Project** and the contributors to the **Galaxy Docker Stable** images.
 
-This deployment configuration is a wrapper for the excellent work of the **Galaxy Project** and the **Galaxy Docker** community. 
+- **Main Image**: [bgruening/docker-galaxy-stable](https://github.com/bgruening/docker-galaxy)
+- **CVMFS**: [Galaxy Project Reference Data](https://galaxyproject.org/admin/reference-data-repo/)
 
-- **Original Image**: [bgruening/docker-galaxy-stable](https://github.com/bgruening/docker-galaxy)
-- **Base Project**: [Galaxy Project Official Site](https://galaxyproject.org/)
-
-We give full credit to the original authors for building the powerful software and Docker images that make this streamlined deployment possible.
+---

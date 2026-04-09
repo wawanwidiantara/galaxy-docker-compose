@@ -22,6 +22,7 @@ services:
       - GALAXY_LOGGING=${GALAXY_LOGGING:-full}
       - GALAXY_AUTO_UPDATE_DB=${GALAXY_AUTO_UPDATE_DB:-True}
       - GALAXY_EXPORT_MARKER=${GALAXY_EXPORT_MARKER:-}
+      - HOME=/home/galaxy
       
       # --- SECURITY ---
       - GALAXY_CONFIG_ADMIN_USERS=${GALAXY_ADMIN_USERS}

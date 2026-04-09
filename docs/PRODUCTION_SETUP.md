@@ -31,6 +31,9 @@ cp .env.example .env
 ```
 Now, open the **`.env`** file and change **`admin@your-org.com`** to your real email.
 
+> [!TIP]
+> **Stability Fix**: Ensure you add `HOME=/home/galaxy` to your environment (already included in the provided `docker-compose.yml`) to prevent "Permission Denied" errors related to Python's internal cache files.
+
 ---
 
 ### Step 3.5: Set Management Passwords

@@ -1,0 +1,5 @@
+---
+postgres_exporter_version: "0.15.0"   # check https://github.com/prometheus-community/postgres_exporter/releases for current
+postgres_exporter_user: postgres_exporter
+node_exporter_web_listen_address: "0.0.0.0:9100"
+postgres_exporter_web_listen_address: "127.0.0.1:9187"

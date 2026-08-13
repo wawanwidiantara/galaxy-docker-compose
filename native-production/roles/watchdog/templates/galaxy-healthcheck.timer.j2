@@ -1,0 +1,9 @@
+[Unit]
+Description=Run galaxy-healthcheck.service periodically
+
+[Timer]
+OnBootSec=2min
+OnUnitActiveSec=1min
+
+[Install]
+WantedBy=timers.target

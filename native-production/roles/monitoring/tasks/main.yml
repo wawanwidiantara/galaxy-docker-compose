@@ -1,0 +1,66 @@
+---
+# node_exporter itself is installed directly via the prometheus.prometheus
+# collection's node_exporter role in playbook.yml (real, verified
+# collection — see requirements.yml). This role only covers postgres_exporter,
+# which has no equally-standard Ansible role, so it's installed manually
+# from the verified upstream project (prometheus-community/postgres_exporter
+# on GitHub) as a binary + systemd unit.
+#
+# IMPORTANT: for alerting to survive the outage it's alerting about,
+# Prometheus/Alertmanager should scrape these exporters FROM A DIFFERENT
+# HOST, not run on this same VM — an on-box Prometheus can't tell anyone
+# the VM is down if the VM is down. Point an existing/external Prometheus
+# at {{ ansible_default_ipv4.address }}:9100 (node) and :9187 (postgres,
+# only if you open it up — currently bound to 127.0.0.1, tighten/relax per
+# your network trust model).
+
+- name: Create postgres_exporter system user
+  ansible.builtin.user:
+    name: "{{ postgres_exporter_user }}"
+    system: true
+    shell: /usr/sbin/nologin
+    create_home: false
+
+- name: Grant pg_monitor to postgres_exporter role in Postgres
+  become: true
+  become_user: postgres
+  ansible.builtin.command: >
+    psql -c "DO $$ BEGIN
+      IF NOT EXISTS (SELECT FROM pg_roles WHERE rolname = '{{ postgres_exporter_user }}') THEN
+        CREATE ROLE {{ postgres_exporter_user }} LOGIN;
+      END IF;
+    END $$;
+    GRANT pg_monitor TO {{ postgres_exporter_user }};"
+  changed_when: true
+
+- name: Add peer-auth pg_hba entry for postgres_exporter
+  ansible.builtin.lineinfile:
+    path: /etc/postgresql/16/main/pg_hba.conf   # adjust path to match postgresql_data_dir's version
+    line: "local   all   {{ postgres_exporter_user }}   peer"
+    insertafter: "^local"
+  notify: reload postgresql
+
+- name: Download postgres_exporter
+  ansible.builtin.unarchive:
+    src: "https://github.com/prometheus-community/postgres_exporter/releases/download/v{{ postgres_exporter_version }}/postgres_exporter-{{ postgres_exporter_version }}.linux-amd64.tar.gz"
+    dest: /usr/local/bin
+    remote_src: true
+    extra_opts:
+      - "--strip-components=1"
+      - "--wildcards"
+      - "*/postgres_exporter"
+    creates: /usr/local/bin/postgres_exporter
+
+- name: Deploy postgres_exporter systemd unit
+  ansible.builtin.template:
+    src: postgres_exporter.service.j2
+    dest: /etc/systemd/system/postgres_exporter.service
+    mode: "0644"
+  notify: reload systemd
+
+- name: Enable and start postgres_exporter
+  ansible.builtin.systemd:
+    name: postgres_exporter
+    enabled: true
+    state: started
+    daemon_reload: true

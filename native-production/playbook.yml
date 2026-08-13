@@ -1,0 +1,73 @@
+---
+# Run with: ansible-playbook -i inventory/hosts.ini playbook.yml --ask-vault-pass
+# (NOT run in this session — scaffold only.)
+#
+# Staged so a failure partway through leaves the VM in a known state, and
+# so you can re-run idempotently after fixing whatever broke — every role
+# here (upstream and custom) is written to be safe to re-apply.
+
+- name: Harden the base OS first, before anything listens on the network
+  hosts: galaxyservers
+  become: true
+  roles:
+    - dev-sec.os-hardening
+    - dev-sec.ssh-hardening
+    - firewall
+
+- name: Mount NAS storage
+  hosts: galaxyservers
+  become: true
+  roles:
+    - nas_mount
+
+- name: Install and configure Postgres
+  hosts: dbservers
+  become: true
+  roles:
+    - galaxyproject.postgresql
+
+- name: Create Galaxy's database and role
+  hosts: dbservers
+  become: true
+  become_user: postgres
+  roles:
+    - galaxyproject.postgresql_objects
+
+- name: Install Galaxy application
+  hosts: galaxyservers
+  become: true
+  roles:
+    - role: galaxyproject.miniconda
+      become_user: "{{ galaxy_user_name }}"
+    - galaxyproject.galaxy
+    - galaxyproject.cvmfs
+      # comment out the line above if you don't want on-demand CVMFS
+      # reference data alongside your NAS-backed datasets
+    - galaxyproject.proftpd
+
+- name: TLS
+  hosts: galaxyservers
+  become: true
+  roles:
+    - usegalaxy_eu.certbot
+    - galaxyproject.nginx
+
+- name: Resilience — restart policy, resource limits, health checks
+  hosts: galaxyservers
+  become: true
+  roles:
+    - watchdog
+
+- name: Backups
+  hosts: galaxyservers
+  become: true
+  roles:
+    - l3d.restic
+    - backup
+
+- name: Monitoring
+  hosts: galaxyservers
+  become: true
+  roles:
+    - role: prometheus.prometheus.node_exporter
+    - monitoring

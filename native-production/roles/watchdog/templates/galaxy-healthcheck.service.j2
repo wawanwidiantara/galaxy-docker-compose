@@ -1,0 +1,7 @@
+[Unit]
+Description=Galaxy application-level health check
+After=galaxy.service
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/galaxy-healthcheck.sh

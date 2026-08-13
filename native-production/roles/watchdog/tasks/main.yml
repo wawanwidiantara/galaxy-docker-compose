@@ -1,0 +1,56 @@
+---
+- name: Ensure galaxy.service systemd drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/galaxy.service.d
+    state: directory
+    mode: "0755"
+
+- name: Deploy resource-limit + restart-policy drop-in for galaxy.service
+  ansible.builtin.template:
+    src: 10-resource-limits.conf.j2
+    dest: /etc/systemd/system/galaxy.service.d/10-resource-limits.conf
+    mode: "0644"
+  notify: reload systemd
+
+- name: Ensure postgresql.service systemd drop-in directory exists
+  ansible.builtin.file:
+    path: /etc/systemd/system/postgresql.service.d
+    state: directory
+    mode: "0755"
+
+- name: Deploy restart-policy drop-in for postgresql.service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/postgresql.service.d/10-restart-policy.conf
+    mode: "0644"
+    content: |
+      [Unit]
+      StartLimitIntervalSec=600
+      StartLimitBurst=5
+
+      [Service]
+      Restart=on-failure
+      RestartSec=10s
+  notify: reload systemd
+
+- name: Deploy application-level health check script
+  ansible.builtin.template:
+    src: galaxy-healthcheck.sh.j2
+    dest: /usr/local/bin/galaxy-healthcheck.sh
+    mode: "0700"
+
+- name: Deploy health check systemd service + timer
+  ansible.builtin.template:
+    src: "{{ item }}.j2"
+    dest: "/etc/systemd/system/{{ item }}"
+    mode: "0644"
+  loop:
+    - galaxy-healthcheck.service
+    - galaxy-healthcheck.timer
+  notify: reload systemd
+
+- name: Enable and start health check timer
+  ansible.builtin.systemd:
+    name: galaxy-healthcheck.timer
+    enabled: true
+    state: started
+    daemon_reload: true

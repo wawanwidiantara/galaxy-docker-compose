@@ -1,0 +1,7 @@
+---
+backup_schedule: "daily"          # systemd OnCalendar value
+backup_keep_daily: 14
+backup_keep_weekly: 8
+backup_keep_monthly: 6
+backup_wal_archive_dir: /var/lib/postgresql/wal_archive
+backup_script_path: /usr/local/bin/galaxy-backup.sh

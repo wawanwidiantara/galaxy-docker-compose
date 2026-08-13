@@ -1,0 +1,51 @@
+---
+# Applied by galaxyproject.postgresql (engine install) and
+# galaxyproject.postgresql_objects (user/db creation, run as the postgres
+# user per the official tutorial's two-role split).
+#
+# CONFIDENCE NOTE: the two-role split (engine vs. objects) and the general
+# shape below are confirmed from Galaxy Project's own tutorial. The exact
+# variable names can drift between role versions — check
+# `ansible-galaxy role info galaxyproject.postgresql` /
+# `galaxyproject.postgresql_objects` (or their GitHub defaults/main.yml)
+# against whatever version requirements.yml pins before trusting this
+# verbatim.
+
+postgresql_objects_users:
+  - name: "{{ galaxy_user_name }}"
+
+postgresql_objects_databases:
+  - name: "{{ galaxy_db_name }}"
+    owner: "{{ galaxy_user_name }}"
+
+# Auth: Unix domain socket (peer auth) from localhost only — no TCP
+# listener needed since Galaxy and Postgres are on the same VM. This is
+# both the tutorial's documented pattern and the more secure/performant
+# choice for same-host DB access (no TCP/TLS overhead, no network attack
+# surface for the DB at all).
+postgresql_hba_entries:
+  - { type: local, database: all, user: postgres, auth_method: peer }
+  - { type: local, database: "{{ galaxy_db_name }}", user: "{{ galaxy_user_name }}", auth_method: peer }
+
+# --- Performance tuning — starting points, not a benchmark result ---
+# Tune against actual VM RAM. Rule of thumb: shared_buffers ~25% of RAM
+# dedicated to Postgres, effective_cache_size ~50-75%. Verify with
+# EXPLAIN ANALYZE and pg_stat_activity under real load before trusting
+# these numbers long-term.
+postgresql_conf:
+  shared_buffers: "{{ pg_shared_buffers | default('2GB') }}"
+  effective_cache_size: "{{ pg_effective_cache_size | default('6GB') }}"
+  work_mem: "{{ pg_work_mem | default('32MB') }}"
+  maintenance_work_mem: "{{ pg_maintenance_work_mem | default('512MB') }}"
+  max_connections: "{{ pg_max_connections | default(200) }}"
+  # WAL archiving enabled for point-in-time recovery — see roles/backup.
+  wal_level: replica
+  archive_mode: "on"
+  archive_command: "test ! -f /var/lib/postgresql/wal_archive/%f && cp %p /var/lib/postgresql/wal_archive/%f"
+  max_wal_size: "2GB"
+
+# Postgres data directory: LOCAL DISK, never the NAS mount. NFS/CIFS under
+# a live database risks silent corruption on a network hiccup and adds
+# latency to every write — this is the one thing that must never move to
+# the NAS regardless of how tempting the extra space looks.
+postgresql_data_dir: /var/lib/postgresql/16/main

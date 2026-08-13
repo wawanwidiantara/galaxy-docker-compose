@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Managed by Ansible (roles/backup) — do not edit by hand, edit the .j2
+# template instead.
+#
+# Backs up:
+#   1. Postgres base backup (via pg_basebackup) — combined with continuous
+#      WAL archiving (configured in group_vars/dbservers.yml) gives
+#      point-in-time recovery, not just daily-snapshot granularity.
+#   2. Galaxy config directory.
+#   3. Everything pushed to restic, which is configured (via the l3d.restic
+#      role) to target {{ restic_repository }} — NOT the primary NAS mount,
+#      so a NAS failure can't take out backups along with primary data.
+#
+# Deliberately does NOT back up dataset files under
+# {{ nas_mount_point }}/datasets/ — that's bulk data, back it up via the
+# NAS's own snapshot/replication feature if it has one, not through this
+# restic repository (restic scanning multi-TB dataset dirs nightly doesn't
+# scale). See docs/RUNBOOK.md.
+
+set -euo pipefail
+
+STAMP="$(date +%Y%m%d-%H%M%S)"
+WORKDIR="$(mktemp -d)"
+trap 'rm -rf "${WORKDIR}"' EXIT
+
+echo "[$(date -Is)] Taking Postgres base backup..."
+sudo -u postgres pg_basebackup \
+  -D "${WORKDIR}/pg_basebackup" \
+  -Ft -z -Xs -P
+
+echo "[$(date -Is)] Archiving Galaxy config..."
+tar -C "{{ galaxy_root }}" -czf "${WORKDIR}/galaxy-config-${STAMP}.tar.gz" config
+
+echo "[$(date -Is)] Pushing to restic repository..."
+export RESTIC_REPOSITORY="{{ restic_repository }}"
+export RESTIC_PASSWORD="{{ restic_password }}"
+restic backup "${WORKDIR}" --tag galaxy --tag "${STAMP}"
+
+echo "[$(date -Is)] Applying retention policy..."
+restic forget --tag galaxy \
+  --keep-daily {{ backup_keep_daily }} \
+  --keep-weekly {{ backup_keep_weekly }} \
+  --keep-monthly {{ backup_keep_monthly }} \
+  --prune
+
+echo "[$(date -Is)] Verifying repository integrity (subset check)..."
+restic check --read-data-subset=5%
+
+echo "[$(date -Is)] Backup complete."

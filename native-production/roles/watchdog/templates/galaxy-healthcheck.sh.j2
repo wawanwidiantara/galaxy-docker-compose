@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+# Managed by Ansible (roles/watchdog). Runs on a timer; if Galaxy's own
+# systemd Restart=on-failure isn't enough (process alive but hung, not
+# actually crashed), this catches it and forces a restart, then alerts.
+set -euo pipefail
+
+URL="http://127.0.0.1/api/version"
+ALERT_WEBHOOK="{{ alert_webhook_url | default('') }}"
+
+if curl -fsS --max-time 10 "${URL}" >/dev/null; then
+  exit 0
+fi
+
+echo "[$(date -Is)] Health check failed against ${URL} — restarting galaxy.service"
+systemctl restart galaxy.service
+
+if [ -n "${ALERT_WEBHOOK}" ]; then
+  curl -fsS --max-time 10 -X POST "${ALERT_WEBHOOK}" \
+    -H "Content-Type: application/json" \
+    -d "{\"text\": \"Galaxy health check failed on $(hostname) at $(date -Is) — service was restarted.\"}" \
+    || echo "[$(date -Is)] Alert webhook call also failed" >&2
+fi

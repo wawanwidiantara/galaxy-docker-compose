@@ -1,0 +1,10 @@
+[Unit]
+Description=Galaxy backup (Postgres base backup + config -> restic)
+Wants=network-online.target
+After=network-online.target postgresql.service
+
+[Service]
+Type=oneshot
+ExecStart={{ backup_script_path }}
+# Don't let a stuck NAS or restic repo hang forever and delay the next run
+TimeoutStartSec=6h

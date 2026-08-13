@@ -1,0 +1,14 @@
+[Unit]
+# Auto-restart on crash/hang, with a cap so a boot-loop doesn't hammer
+# Postgres with repeated reconnect storms.
+StartLimitIntervalSec=600
+StartLimitBurst=5
+
+[Service]
+Restart=on-failure
+RestartSec=10s
+
+# CPU/memory ceiling so job-handler/Celery load on this same VM can't
+# starve Postgres (which runs as its own systemd unit, outside this slice).
+CPUQuota={{ galaxy_systemd_cpu_quota | default('80%') }}
+MemoryMax={{ galaxy_systemd_memory_max | default('70%') }}

@@ -1,0 +1,28 @@
+# OPT-IN: BioContainers-in-Docker + on-demand CVMFS via autofs + active FTP.
+#
+# Everything in this file grants the galaxy container root-equivalent
+# control of the HOST (docker.sock access = can spawn a privileged
+# container = host root; --privileged bypasses most container isolation
+# outright). Only use this on trusted, single-tenant hosts where you
+# actually need one of these features. Otherwise leave it out.
+#
+# Usage:
+#   cp compose.override.yml.example compose.override.yml
+#   docker compose -f compose.yaml -f compose.override.yml up -d
+#
+# compose.override.yml is gitignored — do not commit it.
+
+services:
+  galaxy:
+    privileged: true
+    ports:
+      # Active/passive FTP control channel. Passive FTP additionally needs
+      # a mapped passive-port range (or --net=host) to work through this
+      # bridge network — see the upstream docs before relying on it.
+      - "8021:21"
+    environment:
+      - GALAXY_DOCKER_ENABLED=True
+      - DOCKER_PARENT=True
+      - NONUSE=${NONUSE:-}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock

@@ -1,0 +1,14 @@
+[Unit]
+Description=Prometheus postgres_exporter
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+User={{ postgres_exporter_user }}
+# Unix-socket, peer-auth connection — no password in this unit file.
+Environment=DATA_SOURCE_NAME=postgresql:///postgres?host=/var/run/postgresql
+ExecStart=/usr/local/bin/postgres_exporter --web.listen-address={{ postgres_exporter_web_listen_address }}
+Restart=on-failure
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,50 @@
+---
+# Minimal, deliberately not the full usegalaxy_eu.firewall role (that one
+# encodes Galaxy Europe's own institutional network rules) — a plain ufw
+# default-deny with explicit allows is easier to audit for a single-VM
+# deploy and has no hidden institution-specific assumptions.
+
+- name: Install ufw
+  ansible.builtin.package:
+    name: ufw
+    state: present
+
+- name: Default deny incoming, allow outgoing
+  community.general.ufw:
+    direction: "{{ item.direction }}"
+    policy: "{{ item.policy }}"
+  loop:
+    - { direction: incoming, policy: deny }
+    - { direction: outgoing, policy: allow }
+
+- name: Rate-limit SSH (mitigates brute-force without a separate fail2ban dependency)
+  community.general.ufw:
+    rule: limit
+    port: "22"
+    proto: tcp
+
+- name: Allow HTTP/HTTPS
+  community.general.ufw:
+    rule: allow
+    port: "{{ item }}"
+    proto: tcp
+  loop:
+    - "80"
+    - "443"
+
+- name: Allow SFTP (proftpd, if enabled)
+  community.general.ufw:
+    rule: allow
+    port: "22"
+    proto: tcp
+  when: proftpd_conf_galaxy_enabled | default(false)
+
+# Postgres, node_exporter, postgres_exporter are intentionally NOT opened
+# here — Postgres is unix-socket-only (no TCP listener per dbservers.yml),
+# and the exporters are bound to 127.0.0.1 by default. If an external
+# Prometheus needs to scrape this host, add an explicit allow scoped to
+# that Prometheus server's IP only, not a blanket port open.
+
+- name: Enable ufw
+  community.general.ufw:
+    state: enabled

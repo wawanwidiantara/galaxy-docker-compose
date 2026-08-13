@@ -1,0 +1,41 @@
+---
+# restic itself and its repository init are handled by the l3d.restic role
+# (see requirements.yml) — this role only wires up WHAT gets backed up and
+# WHEN, specific to Galaxy's Postgres + config.
+
+- name: Create WAL archive directory (target of dbservers.yml archive_command)
+  ansible.builtin.file:
+    path: "{{ backup_wal_archive_dir }}"
+    state: directory
+    owner: postgres
+    group: postgres
+    mode: "0700"
+
+- name: Deploy backup script
+  ansible.builtin.template:
+    src: galaxy-backup.sh.j2
+    dest: "{{ backup_script_path }}"
+    mode: "0700"
+    owner: root
+    group: root
+
+- name: Deploy backup systemd service
+  ansible.builtin.template:
+    src: galaxy-backup.service.j2
+    dest: /etc/systemd/system/galaxy-backup.service
+    mode: "0644"
+  notify: reload systemd
+
+- name: Deploy backup systemd timer
+  ansible.builtin.template:
+    src: galaxy-backup.timer.j2
+    dest: /etc/systemd/system/galaxy-backup.timer
+    mode: "0644"
+  notify: reload systemd
+
+- name: Enable and start backup timer
+  ansible.builtin.systemd:
+    name: galaxy-backup.timer
+    enabled: true
+    state: started
+    daemon_reload: true

@@ -1,0 +1,68 @@
+# Verified real roles/collections only — pulled from two authoritative
+# sources, not invented:
+#   1. Galaxy Project's own official Ansible tutorial (training.galaxyproject.org
+#      /training-material/topics/admin/tutorials/ansible-galaxy/tutorial.html)
+#   2. usegalaxy-eu/infrastructure-playbook requirements.yaml — the actual
+#      Ansible inventory running Galaxy Europe's production instance.
+#
+# Institution-specific pieces from #2 (Tailscale, Dokku, PHP/Apache, HTCondor
+# cluster glue, TFTP, DNBD3, UCSC genome browser mirror, beacon/telegraf/
+# WallE) are deliberately left out — irrelevant to a single-VM deployment.
+#
+# Pin every `version:` to a real current release before use — check
+# https://galaxy.ansible.com/<namespace>/<name> for the latest tag. Commit
+# hashes shown here (from the source repos above) are placeholders to swap
+# for a real pinned version or a hash you've personally reviewed.
+
+roles:
+  # --- Core application stack ---
+  - name: galaxyproject.galaxy
+    src: https://github.com/galaxyproject/ansible-galaxy.git
+    version: main   # PIN to a specific release tag before real use
+
+  - name: galaxyproject.postgresql
+    src: galaxyproject.postgresql
+
+  - name: galaxyproject.postgresql_objects
+    src: galaxyproject.postgresql_objects
+
+  - name: galaxyproject.nginx
+    src: galaxyproject.nginx
+
+  - name: galaxyproject.miniconda
+    src: galaxyproject.miniconda
+
+  # --- TLS ---
+  - name: usegalaxy_eu.certbot
+    src: https://github.com/usegalaxy-eu/ansible-certbot.git
+    version: main   # PIN before real use
+
+  # --- Reference data (CVMFS) — host-level, no --privileged container
+  # needed. Optional: only pull this in if you actually want on-demand
+  # CVMFS reference genomes in addition to your own NAS-backed datasets. ---
+  - name: galaxyproject.cvmfs
+    src: https://github.com/usegalaxy-eu/ansible-cvmfs.git
+    version: master   # PIN before real use
+
+  # --- FTP (native install has no Docker bridge-network passive-FTP
+  # problem — safe to enable here, unlike the Docker Compose version). ---
+  - name: galaxyproject.proftpd
+    src: galaxyproject.proftpd
+
+  # --- OS/SSH hardening — widely used, actively maintained (DevSec project) ---
+  - name: dev-sec.os-hardening
+    src: dev-sec.os-hardening
+
+  - name: dev-sec.ssh-hardening
+    src: dev-sec.ssh-hardening
+
+  # --- Backup (restic: encrypted, incremental, well-established) ---
+  - name: l3d.restic
+    src: https://github.com/roles-ansible/ansible_role_restic.git
+    version: main   # PIN before real use
+
+collections:
+  # --- Monitoring: node_exporter + prometheus + alertmanager ---
+  - name: prometheus.prometheus
+  - name: ansible.posix
+  - name: community.general

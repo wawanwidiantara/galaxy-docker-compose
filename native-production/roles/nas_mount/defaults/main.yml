@@ -1,0 +1,5 @@
+---
+nas_export: "{{ nas_export }}"
+nas_mount_point: "{{ nas_mount_point }}"
+nas_mount_type: "{{ nas_mount_type }}"
+nas_mount_options: "{{ nas_mount_options }}"

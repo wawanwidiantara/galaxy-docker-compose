@@ -14,6 +14,10 @@ logs/
 # 3. Docker Transient Files
 .docker/
 docker-compose.override.yml
+compose.override.yml
+
+# 6. Backups
+backups/
 
 # 4. OS/IDE Specific
 .DS_Store

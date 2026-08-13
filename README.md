@@ -15,13 +15,30 @@ A complete reference for all environment variables (`.env`):
 👉 **[Config Reference (CONFIG.md)](docs/CONFIG.md)**
 
 ## 🛠 Features Included
-- **Reference Data**: CVMFS integration for on-demand genome access.
+- **Reference Data**: CVMFS integration for on-demand genome access (opt-in, see below).
 - **Interactive Tools**: Built-in proxy for Jupyter and RStudio notebooks.
-- **Platform Integration**: Native Docker-in-Docker support for BioContainers.
-- **Scaling**: Configurable Gunicorn workers and Job Handlers for multi-user workloads.
+- **Platform Integration**: Docker-in-Docker support for BioContainers (opt-in, see below).
+- **Scaling**: Configurable Gunicorn workers, Job Handlers, and container resource limits for multi-user workloads.
+
+## 🔒 Hardened by default
+`compose.yaml` pins the image version and ships with `--privileged` and the
+Docker socket mount removed, since both grant the container root-equivalent
+control of the host. BioContainers-in-Docker, on-demand CVMFS via autofs,
+and active FTP all need one of those — they're opt-in via
+`compose.override.yml.example`:
+
+```sh
+cp compose.override.yml.example compose.override.yml
+docker compose -f compose.yaml -f compose.override.yml up -d
+```
+
+Read the warning at the top of that file before using it. Full rationale in
+[docs/PRODUCTION_SETUP.md](docs/PRODUCTION_SETUP.md).
 
 ## 🧹 Maintenance
-- **Updates**: `docker compose pull && docker compose up -d`
+- **Updates**: bump `GALAXY_IMAGE_TAG` in `.env` to a specific release, then `docker compose pull && docker compose up -d`. Don't track `latest` in production.
+- **Backups**: `./scripts/backup.sh` dumps the Postgres DB + config (schedule via cron); dataset files need filesystem-level snapshotting separately.
+- **Log rotation**: install `config/logrotate-galaxy.conf` on the host — Galaxy's own logs bypass Docker's log limits.
 - **Clean Uninstall**: See the **Uninstall** section in the [Step Guide](docs/PRODUCTION_SETUP.md).
 
 ---

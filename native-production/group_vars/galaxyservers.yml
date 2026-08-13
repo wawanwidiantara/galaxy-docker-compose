@@ -1,0 +1,90 @@
+---
+# Applied by galaxyproject.galaxy (+ galaxyproject.miniconda as the galaxy
+# user, galaxyproject.nginx, galaxyproject.proftpd, galaxyproject.cvmfs).
+#
+# CONFIDENCE NOTE on the `galaxy_config.gravity` block below: the overall
+# pattern (Gravity manages a `gunicorn` web process group and a separate
+# webless `handlers` group via systemd — "Gunicorn + Webless deployment
+# pattern") is confirmed from Galaxy Project's own production tutorial.
+# The exact key names/nesting have changed across Galaxy releases —
+# verify against the gravity schema shipped with whatever `galaxy_commit_id`
+# you pin below (check `lib/galaxy/config/sample/gravity.yml.sample` in
+# that exact Galaxy checkout) before trusting this verbatim.
+
+# --- Layout ---
+galaxy_layout: root-dir
+galaxy_root: /srv/galaxy
+galaxy_commit_id: release_25.1   # PIN to a real current release tag
+galaxy_separate_privileges: true # config owned by root/deploy user, runtime as galaxy user
+galaxy_manage_systemd: true
+galaxy_config_style: yaml
+
+galaxy_create_user: true
+galaxy_manage_paths: true
+
+# --- Storage: dataset files + job working dir go to the NAS mount (bulk,
+# grows unbounded, exactly what NAS is for). Everything DB-related stays
+# local (see dbservers.yml). Tool dependency cache also local — it's
+# small, and hot-path read latency for it matters. ---
+galaxy_config:
+  galaxy:
+    database_connection: "postgresql:///{{ galaxy_db_name }}?host=/var/run/postgresql"
+    file_path: "{{ nas_mount_point }}/datasets"
+    job_working_directory: "{{ nas_mount_point }}/jobs"
+    new_file_path: /srv/galaxy/tmp
+    tool_dependency_dir: /srv/galaxy/deps
+    id_secret: "{{ vault_galaxy_id_secret }}"          # put real secrets in an Ansible Vault file, not here
+    admin_users: "{{ galaxy_admin_email }}"
+    bootstrap_admin_api_key: "{{ vault_galaxy_bootstrap_api_key }}"
+    brand: "Galaxy Enterprise"
+
+  gravity:
+    process_manager: systemd
+    galaxy_root: "{{ galaxy_root }}"
+    galaxy_user: "{{ galaxy_user_name }}"
+    app_server: gunicorn
+
+    gunicorn:
+      bind: "unix:/srv/galaxy/var/gunicorn.sock"
+      workers: "{{ gunicorn_workers | default(4) }}"
+      timeout: 300
+
+    # "Webless" handler pool — job handling runs as its OWN systemd-managed
+    # process group, independent of the gunicorn web workers above. This is
+    # the process-tier separation the Docker appliance image can't do
+    # cleanly; it's the main reason this native setup exists.
+    handlers:
+      handler:
+        processes: "{{ galaxy_handler_numprocs | default(3) }}"
+        pools:
+          - job-handlers
+          - workflow-schedulers
+
+    celery:
+      enable: true
+      concurrency: "{{ celery_workers | default(2) }}"
+
+# --- nginx (galaxyproject.nginx role) ---
+galaxy_nginx_servername: "{{ galaxy_domain }}"
+galaxy_nginx_enable_upload_route: true
+galaxy_nginx_client_max_body_size: 200m
+galaxy_nginx_ssl_certificate: "/etc/letsencrypt/live/{{ galaxy_domain }}/fullchain.pem"
+galaxy_nginx_ssl_certificate_key: "/etc/letsencrypt/live/{{ galaxy_domain }}/privkey.pem"
+
+# --- FTP (proftpd) — safe to enable natively; the Docker bridge-network
+# passive-port problem from the Compose version doesn't apply here since
+# proftpd binds directly to the host network. ---
+proftpd_conf_galaxy_enabled: true
+
+# --- CVMFS (optional reference-data mount, separate concern from your
+# NAS-backed dataset storage above) ---
+cvmfs_enabled: true
+cvmfs_quota_limit_mb: 40000
+
+# --- Resource control: systemd slice limits so job-handler/Gunicorn/
+# Celery processes can't collectively starve Postgres, which is on the
+# same VM. Applied via roles/watchdog (drop-in unit overrides), not the
+# upstream role — verify no conflicting override exists after galaxyproject
+# .galaxy templates its own systemd units. ---
+galaxy_systemd_cpu_quota: "80%"
+galaxy_systemd_memory_max: "70%"

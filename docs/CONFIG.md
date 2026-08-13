@@ -4,6 +4,14 @@ This document provides a detailed breakdown of every environment variable suppor
 
 ---
 
+## 📦 0. Image Version
+
+| Variable | Description | Default |
+| :--- | :--- | :--- |
+| `GALAXY_IMAGE_TAG` | Pinned image tag pulled from `quay.io/bgruening/galaxy`. Never leave this tracking `latest` in production — bump it deliberately and follow the migration steps in PRODUCTION_SETUP.md. | `26.0` |
+
+---
+
 ## 🔐 1. Security & Authentication (CRITICAL)
 These must be changed for every new deployment to prevent unauthorized access.
 
@@ -33,11 +41,26 @@ These must be changed for every new deployment to prevent unauthorized access.
 
 ---
 
-## 🐳 4. Docker & Platform Integration
-| Variable | Description | Status |
+## 🧯 3b. Container Resource Ceiling
+This single container runs Postgres, nginx, Gunicorn, Celery, RabbitMQ, Redis
+and (optionally) Slurm together. Without a cap, one runaway job can starve
+the database. Size these to the deployment host, not a dev machine.
+
+| Variable | Description | Default |
 | :--- | :--- | :--- |
-| `GALAXY_DOCKER_ENABLED` | Allows Galaxy to start tools inside Docker containers (BioContainers). | `True` |
-| `DOCKER_PARENT` | Connects Galaxy to your laptop/VM's Docker engine for native performance. | `True` |
+| `GALAXY_CPU_LIMIT` | CPU cores the container may use. | `4` |
+| `GALAXY_MEM_LIMIT` | Hard memory ceiling. | `6g` |
+| `GALAXY_MEM_RESERVATION` | Soft memory reservation. | `2g` |
+| `GALAXY_SHM_SIZE` | `/dev/shm` size — Postgres needs more than Docker's 64MB default. | `1gb` |
+| `GALAXY_NOFILE_LIMIT` | Open-file ulimit — Galaxy/Gunicorn/Postgres all want this raised. | `65536` |
+
+---
+
+## 🐳 4. Docker & Platform Integration
+| Variable | Description | Default |
+| :--- | :--- | :--- |
+| `GALAXY_DOCKER_ENABLED` | Allows Galaxy to start tools inside Docker containers (BioContainers). **Off by default** — enabling it needs the Docker socket or `--privileged`, both root-equivalent host access. Use `compose.override.yml.example` instead of setting this here. | `False` |
+| `DOCKER_PARENT` | Connects Galaxy to the host's Docker engine via socket. Same trade-off as above — set via the override file. | `False` |
 | `GALAXY_DESTINATIONS_DEFAULT` | The internal Galaxy "Job Destination". Tells Galaxy to use the Slurm/Docker cluster. | `slurm_cluster` |
 
 ---
@@ -47,6 +70,11 @@ Use the **`NONUSE`** variable to disable specific services you don't need to sav
 - **Example**: `NONUSE=reports,flower,proftp` (Separate with commas).
 
 Common values: `reports`, `flower`, `proftp`, `slurmd`, `slurmctld`, `nodejs`.
+
+`proftp` is disabled by default — passive FTP doesn't work over Docker's
+bridge network without a mapped passive-port range, so `compose.yaml` omits
+port 8021 and pushes file transfer to SFTP (port 8022) instead. Re-enable it
+via `compose.override.yml.example` if you specifically need FTP.
 
 ---
 
@@ -63,7 +91,7 @@ Common values: `reports`, `flower`, `proftp`, `slurmd`, `slurmctld`, `nodejs`.
 | Variable | Description |
 | :--- | :--- |
 | `GALAXY_LOGGING` | Set to `full` to record everything to file. Set to `none` to save disk space. |
-| `GALAXY_AUTO_UPDATE_DB` | If `True`, Galaxy will automatically upgrade the database schema on startup. |
+| `GALAXY_AUTO_UPDATE_DB` | If `True`, Galaxy automatically upgrades the database schema on every container startup — risky with no backup gate. Defaults to `False`; run migrations manually after a backup (see PRODUCTION_SETUP.md Step 7). |
 | `BARE` | If `True`, starts a minimal Galaxy with no pre-installed dependencies. |
 | `ENABLE_TTS_INSTALL` | Allows tool installation from the Galaxy Tool Shed. |
 

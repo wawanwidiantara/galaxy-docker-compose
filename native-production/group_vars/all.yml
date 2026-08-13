@@ -1,0 +1,29 @@
+---
+# Shared across both plays (db + galaxy) — kept minimal on purpose so the
+# two group_vars files stay the source of truth for anything role-specific.
+
+galaxy_user_name: galaxy
+galaxy_group_name: galaxy
+galaxy_db_name: galaxy
+
+# --- Domain / TLS ---
+galaxy_domain: CHANGE_ME.your-org.com   # real FQDN required for certbot
+galaxy_admin_email: CHANGE_ME_admin@your-org.com
+
+# --- NAS (per your constraint: NAS is attached to this VM) ---
+# Mount NAS for BULK DATA only. Postgres data directory must stay on local
+# disk — see roles/nas_mount and group_vars/dbservers.yml for why.
+nas_export: CHANGE_ME_nas-host:/export/path      # e.g. 10.0.1.5:/export/galaxy
+nas_mount_type: nfs4                             # nfs4 | cifs
+nas_mount_point: /mnt/nas/galaxy
+nas_mount_options: "rw,_netdev,hard,timeo=600,retrans=2,noatime"
+# `hard` (not `soft`) + generous timeo/retrans: a soft NFS mount that times
+# out mid-write silently corrupts in-progress tool output instead of
+# blocking and retrying. See roles/nas_mount/tasks/main.yml.
+
+# --- Backup target ---
+# Deliberately NOT the same NAS as primary storage above — if the NAS dies,
+# a backup living on it dies too. Point this at a second location: a
+# different NAS/share, S3-compatible object storage, or an off-site target.
+restic_repository: CHANGE_ME_backup_target   # e.g. s3:https://s3.example.com/galaxy-backups OR sftp:backup-host:/backups/galaxy
+restic_password: CHANGE_ME_SECURE_PASSPHRASE

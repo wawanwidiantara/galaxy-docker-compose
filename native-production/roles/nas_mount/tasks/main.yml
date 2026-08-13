@@ -1,0 +1,50 @@
+---
+# Mounts the NAS for bulk dataset storage. Deliberately uses a real fstab
+# entry with `_netdev` (boot waits for network before mounting) rather than
+# autofs — datasets need to be there continuously while Galaxy runs, this
+# isn't an on-demand access pattern like CVMFS reference data.
+
+- name: Install NFS/CIFS client packages
+  ansible.builtin.package:
+    name: "{{ 'nfs-common' if nas_mount_type.startswith('nfs') else 'cifs-utils' }}"
+    state: present
+
+- name: Create NAS mount point
+  ansible.builtin.file:
+    path: "{{ nas_mount_point }}"
+    state: directory
+    owner: "{{ galaxy_user_name }}"
+    group: "{{ galaxy_group_name }}"
+    mode: "0750"
+
+- name: Mount NAS export (persistent, boots after network)
+  ansible.posix.mount:
+    path: "{{ nas_mount_point }}"
+    src: "{{ nas_export }}"
+    fstype: "{{ nas_mount_type }}"
+    opts: "{{ nas_mount_options }}"
+    state: mounted
+
+- name: Create dataset/job subdirectories on the NAS mount
+  ansible.builtin.file:
+    path: "{{ nas_mount_point }}/{{ item }}"
+    state: directory
+    owner: "{{ galaxy_user_name }}"
+    group: "{{ galaxy_group_name }}"
+    mode: "0750"
+  loop:
+    - datasets
+    - jobs
+
+# CRITICAL: verify NAS mount reachability BEFORE Galaxy/Postgres start on
+# boot. A silently-missing mount means Galaxy writes datasets into the
+# empty local directory underneath the mount point instead of failing
+# loudly — worse than downtime, it's silent data misplacement.
+- name: Add systemd mount-check drop-in ordering for galaxy.service
+  ansible.builtin.copy:
+    dest: /etc/systemd/system/galaxy.service.d/10-require-nas.conf
+    mode: "0644"
+    content: |
+      [Unit]
+      RequiresMountsFor={{ nas_mount_point }}
+  notify: reload systemd

@@ -1,0 +1,106 @@
+services:
+  galaxy:
+    image: quay.io/bgruening/galaxy:${GALAXY_IMAGE_TAG:-26.0}
+    container_name: galaxy_production
+    restart: unless-stopped
+    ports:
+      # HTTP (Main Web Interface) — put a TLS-terminating reverse proxy in
+      # front of this in real production; see docs/PRODUCTION_SETUP.md.
+      - "${GALAXY_PORT:-8080}:80"
+      # SFTP (Secure Data Transfer)
+      - "8022:22"
+      # Interactive Tools Proxy
+      - "4002:4002"
+      # Supervisor Web UI — bound to localhost only. Tunnel/VPN in, never
+      # expose 9002 publicly (unauthenticated unless htpasswd is verified
+      # to actually gate it for your image build).
+      - "127.0.0.1:9002:9002"
+      # FTP (port 21) is intentionally NOT published by default. Passive
+      # FTP does not work over a bridge network without a mapped passive
+      # port range; use SFTP (8022) instead. See compose.override.yml.example
+      # to re-enable it if you truly need active/host-networked FTP.
+    environment:
+      # --- GALAXY CORE CONFIG ---
+      - GALAXY_CONFIG_BRAND=${GALAXY_BRAND:-Galaxy Enterprise}
+      - GALAXY_DOMAIN=${GALAXY_DOMAIN:-localhost}
+      - GALAXY_LOGGING=${GALAXY_LOGGING:-full}
+      - GALAXY_AUTO_UPDATE_DB=${GALAXY_AUTO_UPDATE_DB:-False}
+      - GALAXY_EXPORT_MARKER=${GALAXY_EXPORT_MARKER:-}
+      - HOME=/home/galaxy
+
+      # --- SECURITY ---
+      - GALAXY_CONFIG_ADMIN_USERS=${GALAXY_ADMIN_USERS}
+      - GALAXY_BOOTSTRAP_ADMIN_API_KEY=${GALAXY_BOOTSTRAP_ADMIN_API_KEY}
+      - GALAXY_CONFIG_ID_SECRET=${GALAXY_ID_SECRET}
+
+      # --- NETWORKING & PROXY ---
+      - USE_HTTPS=${USE_HTTPS:-False}
+      - USE_HTTPS_LETSENCRYPT=${USE_HTTPS_LETSENCRYPT:-False}
+      - PROXY_PREFIX=${PROXY_PREFIX:-}
+
+      # --- DOCKER & CLUSTER INTEGRATION ---
+      # Off by default: launching BioContainers/tool-Docker requires either
+      # the host docker socket or --privileged, both root-equivalent for
+      # this container. Enable via compose.override.yml.example, not here.
+      - GALAXY_DOCKER_ENABLED=${GALAXY_DOCKER_ENABLED:-False}
+      - GALAXY_DOCKER_VOLUMES=${GALAXY_DOCKER_VOLUMES:-""}
+      - DOCKER_PARENT=${DOCKER_PARENT:-False}
+      - GALAXY_DESTINATIONS_DEFAULT=${GALAXY_DESTINATIONS_DEFAULT:-slurm_cluster}
+
+      # --- RESOURCE MANAGEMENT & SCALING ---
+      - GUNICORN_WORKERS=${GUNICORN_WORKERS:-4}
+      - CELERY_WORKERS=${CELERY_WORKERS:-2}
+      - GALAXY_HANDLER_NUMPROCS=${GALAXY_HANDLER_NUMPROCS:-2}
+
+      # --- SERVICE CONTROL (Toggling) ---
+      # proftpd disabled by default (see FTP note above); SFTP still on.
+      - NONUSE=${NONUSE:-proftp}
+
+      # --- EXPERIMENTAL / DEV FEATURES ---
+      - BARE=${BARE:-False}
+      - ENABLE_TTS_INSTALL=${ENABLE_TTS_INSTALL:-False}
+      - LOAD_GALAXY_CONDITIONAL_DEPENDENCIES=${LOAD_GALAXY_CONDITIONAL_DEPENDENCIES:-False}
+      - LOAD_PYTHON_DEV_DEPENDENCIES=${LOAD_PYTHON_DEV_DEPENDENCIES:-False}
+
+    volumes:
+      # Main data export directory (Database, Tools, Datasets, CVMFS cache)
+      - ./export:/export
+      # Persistent logs for auditing — rotate externally, see
+      # config/logrotate-galaxy.conf.
+      - ./logs:/home/galaxy/logs
+      # Custom configuration overrides
+      - ./config/welcome.html:/export/welcome.html:ro
+      - ./config/common_htpasswd:/export/common_htpasswd:ro
+      # Optional: on-demand CVMFS reference data without --privileged.
+      # Requires a CVMFS client installed and mounted on the HOST at /cvmfs
+      # (see docs/PRODUCTION_SETUP.md). Uncomment once the host mount exists:
+      # - /cvmfs:/cvmfs:ro
+
+    # Resource ceiling so one runaway tool/job container can't starve
+    # Postgres + the web tier, which all share this single container.
+    # Size these to the deployment host, not this dev machine.
+    cpus: ${GALAXY_CPU_LIMIT:-4}
+    mem_limit: ${GALAXY_MEM_LIMIT:-6g}
+    mem_reservation: ${GALAXY_MEM_RESERVATION:-2g}
+    shm_size: ${GALAXY_SHM_SIZE:-1gb}
+    ulimits:
+      nofile:
+        soft: ${GALAXY_NOFILE_LIMIT:-65536}
+        hard: ${GALAXY_NOFILE_LIMIT:-65536}
+
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1/api/version || exit 1"]
+      interval: 30s
+      timeout: 10s
+      start_period: 5m
+      retries: 5
+
+    logging:
+      driver: json-file
+      options:
+        max-size: "20m"
+        max-file: "5"
+
+networks:
+  default:
+    name: galaxy_network
